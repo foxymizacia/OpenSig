@@ -550,9 +550,9 @@ internal sealed class MainForm : Form
                 // A new key pair must not destroy old keys needed to verify old signatures.
                 if (File.Exists(privatePath) || File.Exists(publicPath))
                 {
-                    var suffix = DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N")[..6];
-                    privatePath = Path.Combine(directory, "private" + (algorithm == SignatureAlgorithm.Ed25519 ? "_ed25519" : "") + "_" + suffix + ".pem");
-                    publicPath = Path.Combine(directory, "public" + (algorithm == SignatureAlgorithm.Ed25519 ? "_ed25519" : "") + "_" + suffix + ".pem");
+                    var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N")[..6];
+                    privatePath = Path.Combine(directory, "private" + suffix + "_" + stamp + ".pem");
+                    publicPath = Path.Combine(directory, "public" + suffix + "_" + stamp + ".pem");
                 }
 
                 string privatePem, publicPem;
