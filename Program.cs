@@ -27,7 +27,12 @@ internal sealed class AppSettings
 {
     public string PrivateKeyPath { get; set; } = "";
     public string PublicKeyPath { get; set; } = "";
+    public string EdPrivateKeyPath { get; set; } = "";
+    public string EdPublicKeyPath { get; set; } = "";
+    public string Algorithm { get; set; } = "RSA";
 }
+
+internal enum SignatureAlgorithm { RsaSha256, Ed25519 }
 
 internal sealed record OperationResult(string Source, string Status, string Detail, bool IsSuccess);
 
@@ -43,6 +48,8 @@ internal sealed class MainForm : Form
 
     private readonly RadioButton _signMode = new();
     private readonly RadioButton _verifyMode = new();
+    private readonly ComboBox _algorithmBox = new();
+    private readonly Label _headerSubtitle = new();
     private readonly TextBox _privateKeyBox = new();
     private readonly TextBox _publicKeyBox = new();
     private readonly Button _pickPrivateButton = new();
@@ -61,6 +68,12 @@ internal sealed class MainForm : Form
     private readonly ToolTip _pathToolTip = new();
     private string _privateKeyPath = "";
     private string _publicKeyPath = "";
+    private string _rsaPrivateKeyPath = "";
+    private string _rsaPublicKeyPath = "";
+    private string _edPrivateKeyPath = "";
+    private string _edPublicKeyPath = "";
+    private SignatureAlgorithm _selectedAlgorithm = SignatureAlgorithm.RsaSha256;
+    private bool _settingsLoaded;
     private bool _busy;
 
     public MainForm(string[] startupFiles)
@@ -76,6 +89,7 @@ internal sealed class MainForm : Form
 
         BuildInterface();
         LoadSettings();
+        _settingsLoaded = true;
         RefreshKeyPaths();
         UpdateModeAppearance();
         RegisterDropTargets(this);
@@ -100,13 +114,11 @@ internal sealed class MainForm : Form
             Location = new Point(24, 11),
             Size = new Size(240, 40)
         });
-        header.Controls.Add(new Label
-        {
-            Text = "Создание и проверка файловых подписей • RSA / SHA-256 • совместимо с OpenSSL",
-            ForeColor = MutedText,
-            Location = new Point(26, 53),
-            AutoSize = true
-        });
+        _headerSubtitle.Text = "Создание и проверка подписей • RSA / SHA-256 и Ed25519 • OpenSSL";
+        _headerSubtitle.ForeColor = MutedText;
+        _headerSubtitle.Location = new Point(26, 53);
+        _headerSubtitle.AutoSize = true;
+        header.Controls.Add(_headerSubtitle);
 
         var layout = new TableLayoutPanel
         {
@@ -151,6 +163,18 @@ internal sealed class MainForm : Form
         _verifyMode.Margin = new Padding(0, 8, 0, 0);
         _verifyMode.CheckedChanged += (_, _) => UpdateModeAppearance();
         modeRow.Controls.Add(_verifyMode);
+        modeRow.Controls.Add(new Label
+        {
+            Text = "Алгоритм:", AutoSize = true, ForeColor = PrimaryText,
+            Padding = new Padding(12, 9, 5, 0)
+        });
+        _algorithmBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        _algorithmBox.Width = 205;
+        _algorithmBox.Margin = new Padding(3, 5, 0, 0);
+        _algorithmBox.Items.AddRange(new object[] { "RSA-3072 / SHA-256", "Ed25519" });
+        _algorithmBox.SelectedIndex = 0;
+        _algorithmBox.SelectedIndexChanged += async (_, _) => await ChangeAlgorithmAsync();
+        modeRow.Controls.Add(_algorithmBox);
         layout.Controls.Add(modeRow, 0, 0);
 
         var keySurface = new Panel
@@ -347,6 +371,9 @@ internal sealed class MainForm : Form
             _dropSubtitle.Text = "Проверим подпись по открытому ключу; файл и .sig должны лежать рядом";
             _pickFilesButton.Text = "Выбрать для проверки";
         }
+        _headerSubtitle.Text = _selectedAlgorithm == SignatureAlgorithm.Ed25519
+            ? "Создание и проверка подписей • Ed25519 • совместимо с OpenSSL"
+            : "Создание и проверка подписей • RSA / SHA-256 • совместимо с OpenSSL";
         _dropZone.Invalidate();
     }
 
@@ -374,8 +401,16 @@ internal sealed class MainForm : Form
             var file = Path.Combine(_applicationFolder, "settings.json");
             if (!File.Exists(file)) return;
             var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file));
-            _privateKeyPath = settings?.PrivateKeyPath ?? "";
-            _publicKeyPath = settings?.PublicKeyPath ?? "";
+            if (settings is null) return;
+            // Backwards compatible with old versions that had only RSA key paths.
+            _rsaPrivateKeyPath = settings.PrivateKeyPath ?? "";
+            _rsaPublicKeyPath = settings.PublicKeyPath ?? "";
+            _edPrivateKeyPath = settings.EdPrivateKeyPath ?? "";
+            _edPublicKeyPath = settings.EdPublicKeyPath ?? "";
+            _selectedAlgorithm = settings.Algorithm == "Ed25519"
+                ? SignatureAlgorithm.Ed25519 : SignatureAlgorithm.RsaSha256;
+            RestoreSelectedKeyPaths();
+            _algorithmBox.SelectedIndex = _selectedAlgorithm == SignatureAlgorithm.Ed25519 ? 1 : 0;
         }
         catch (Exception)
         {
@@ -383,15 +418,41 @@ internal sealed class MainForm : Form
         }
     }
 
+    private void RememberSelectedKeyPaths()
+    {
+        if (_selectedAlgorithm == SignatureAlgorithm.RsaSha256)
+        {
+            _rsaPrivateKeyPath = _privateKeyPath;
+            _rsaPublicKeyPath = _publicKeyPath;
+        }
+        else
+        {
+            _edPrivateKeyPath = _privateKeyPath;
+            _edPublicKeyPath = _publicKeyPath;
+        }
+    }
+
+    private void RestoreSelectedKeyPaths()
+    {
+        _privateKeyPath = _selectedAlgorithm == SignatureAlgorithm.RsaSha256
+            ? _rsaPrivateKeyPath : _edPrivateKeyPath;
+        _publicKeyPath = _selectedAlgorithm == SignatureAlgorithm.RsaSha256
+            ? _rsaPublicKeyPath : _edPublicKeyPath;
+    }
+
     private void SaveSettings()
     {
         try
         {
+            RememberSelectedKeyPaths();
             Directory.CreateDirectory(_applicationFolder);
             var data = JsonSerializer.Serialize(new AppSettings
             {
-                PrivateKeyPath = _privateKeyPath,
-                PublicKeyPath = _publicKeyPath
+                PrivateKeyPath = _rsaPrivateKeyPath,
+                PublicKeyPath = _rsaPublicKeyPath,
+                EdPrivateKeyPath = _edPrivateKeyPath,
+                EdPublicKeyPath = _edPublicKeyPath,
+                Algorithm = _selectedAlgorithm == SignatureAlgorithm.Ed25519 ? "Ed25519" : "RSA"
             }, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(Path.Combine(_applicationFolder, "settings.json"), data, Encoding.UTF8);
         }
@@ -399,6 +460,27 @@ internal sealed class MainForm : Form
         {
             _status.Text = "Ключи выбраны, но не удалось сохранить настройки: " + ex.Message;
         }
+    }
+
+    private async Task ChangeAlgorithmAsync()
+    {
+        if (!_settingsLoaded || _busy) return;
+        var requested = _algorithmBox.SelectedIndex == 1
+            ? SignatureAlgorithm.Ed25519 : SignatureAlgorithm.RsaSha256;
+        if (requested == _selectedAlgorithm) return;
+
+        RememberSelectedKeyPaths();
+        _selectedAlgorithm = requested;
+        RestoreSelectedKeyPaths();
+        RefreshKeyPaths();
+        UpdateModeAppearance();
+        SaveSettings();
+        // One-time convenience: create a distinct key pair when first selecting
+        // a new algorithm. Never overwrite previously chosen keys.
+        if (string.IsNullOrWhiteSpace(_privateKeyPath) && string.IsNullOrWhiteSpace(_publicKeyPath))
+            await InitializeOnFirstLaunchAsync();
+        else
+            _status.Text = "Алгоритм переключён. Используются ключи выбранного алгоритма.";
     }
 
     private void RefreshKeyPaths()
@@ -419,8 +501,9 @@ internal sealed class MainForm : Form
         }
 
         var dir = Path.Combine(_applicationFolder, "keys");
-        var oldPrivate = Path.Combine(dir, "private.pem");
-        var oldPublic = Path.Combine(dir, "public.pem");
+        var suffix = _selectedAlgorithm == SignatureAlgorithm.Ed25519 ? "_ed25519" : "";
+        var oldPrivate = Path.Combine(dir, "private" + suffix + ".pem");
+        var oldPublic = Path.Combine(dir, "public" + suffix + ".pem");
         if (File.Exists(oldPrivate) && File.Exists(oldPublic))
         {
             _privateKeyPath = oldPrivate;
@@ -438,7 +521,9 @@ internal sealed class MainForm : Form
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Куда сохранить новую пару RSA-ключей?",
+            Description = _selectedAlgorithm == SignatureAlgorithm.Ed25519
+                ? "Куда сохранить новую пару Ed25519-ключей?"
+                : "Куда сохранить новую пару RSA-ключей?",
             UseDescriptionForTitle = true,
             SelectedPath = Path.Combine(_applicationFolder, "keys")
         };
@@ -448,14 +533,17 @@ internal sealed class MainForm : Form
 
     private async Task GenerateKeysAsync(string directory, bool firstLaunch)
     {
-        SetBusy(true, "Создаём пару RSA-3072…");
+        var algorithm = _selectedAlgorithm;
+        SetBusy(true, algorithm == SignatureAlgorithm.Ed25519
+            ? "Создаём пару Ed25519…" : "Создаём пару RSA-3072…");
         try
         {
             var paths = await Task.Run(() =>
             {
                 Directory.CreateDirectory(directory);
-                var plainPrivate = Path.Combine(directory, "private.pem");
-                var plainPublic = Path.Combine(directory, "public.pem");
+                var suffix = algorithm == SignatureAlgorithm.Ed25519 ? "_ed25519" : "";
+                var plainPrivate = Path.Combine(directory, "private" + suffix + ".pem");
+                var plainPublic = Path.Combine(directory, "public" + suffix + ".pem");
                 var privatePath = plainPrivate;
                 var publicPath = plainPublic;
 
@@ -463,14 +551,22 @@ internal sealed class MainForm : Form
                 if (File.Exists(privatePath) || File.Exists(publicPath))
                 {
                     var suffix = DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N")[..6];
-                    privatePath = Path.Combine(directory, "private_" + suffix + ".pem");
-                    publicPath = Path.Combine(directory, "public_" + suffix + ".pem");
+                    privatePath = Path.Combine(directory, "private" + (algorithm == SignatureAlgorithm.Ed25519 ? "_ed25519" : "") + "_" + suffix + ".pem");
+                    publicPath = Path.Combine(directory, "public" + (algorithm == SignatureAlgorithm.Ed25519 ? "_ed25519" : "") + "_" + suffix + ".pem");
                 }
 
-                using var rsa = RSA.Create();
-                rsa.KeySize = 3072;
-                var privatePem = rsa.ExportPkcs8PrivateKeyPem();
-                var publicPem = rsa.ExportSubjectPublicKeyInfoPem();
+                string privatePem, publicPem;
+                if (algorithm == SignatureAlgorithm.Ed25519)
+                {
+                    (privatePem, publicPem) = Ed25519Crypto.GeneratePemPair();
+                }
+                else
+                {
+                    using var rsa = RSA.Create();
+                    rsa.KeySize = 3072;
+                    privatePem = rsa.ExportPkcs8PrivateKeyPem();
+                    publicPem = rsa.ExportSubjectPublicKeyInfoPem();
+                }
 
                 // CreateNew prevents overwriting any file, including in race conditions.
                 using (var stream = new FileStream(privatePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -511,7 +607,8 @@ internal sealed class MainForm : Form
     {
         using var dialog = new OpenFileDialog
         {
-            Title = isPrivate ? "Выберите закрытый ключ RSA" : "Выберите открытый ключ RSA",
+            Title = (isPrivate ? "Выберите закрытый ключ " : "Выберите открытый ключ ")
+                + (_selectedAlgorithm == SignatureAlgorithm.Ed25519 ? "Ed25519" : "RSA"),
             Filter = "Ключи PEM (*.pem;*.key)|*.pem;*.key|Все файлы (*.*)|*.*",
             CheckFileExists = true
         };
@@ -585,14 +682,28 @@ internal sealed class MainForm : Form
             password = dialog.Password;
         }
 
+        var algorithm = _selectedAlgorithm;
         SetBusy(true, signing ? "Создание подписей…" : "Проверка подписей…");
         _results.Items.Clear();
         var good = 0;
         var bad = 0;
 
+        RSA? rsa = null;
+        Org.BouncyCastle.Crypto.Parameters.Ed25519PrivateKeyParameters? edPrivate = null;
+        Org.BouncyCastle.Crypto.Parameters.Ed25519PublicKeyParameters? edPublic = null;
         try
         {
-            using var rsa = await Task.Run(() => LoadRsa(pem, password));
+            if (algorithm == SignatureAlgorithm.Ed25519)
+            {
+                if (signing)
+                    edPrivate = await Task.Run(() => Ed25519Crypto.LoadPrivateKey(pem, password));
+                else
+                    edPublic = await Task.Run(() => Ed25519Crypto.LoadPublicKey(pem));
+            }
+            else
+            {
+                rsa = await Task.Run(() => LoadRsa(pem, password));
+            }
             foreach (var file in files)
             {
                 OperationResult result;
@@ -612,11 +723,15 @@ internal sealed class MainForm : Form
                     }
                     result = !overwrite
                         ? new OperationResult(file, "Пропущен", "Существующая подпись сохранена", false)
-                        : await Task.Run(() => SignFile(rsa, file, signaturePath));
+                        : await Task.Run(() => algorithm == SignatureAlgorithm.Ed25519
+                            ? Ed25519Crypto.SignFile(edPrivate!, file, signaturePath)
+                            : SignFile(rsa!, file, signaturePath));
                 }
                 else
                 {
-                    result = await Task.Run(() => VerifyFile(rsa, file));
+                    result = await Task.Run(() => algorithm == SignatureAlgorithm.Ed25519
+                        ? Ed25519Crypto.VerifyFile(edPublic!, file)
+                        : VerifyFile(rsa!, file));
                 }
 
                 AddResult(result);
@@ -631,10 +746,14 @@ internal sealed class MainForm : Form
         {
             _status.Text = "Операция прервана из-за ошибки ключа.";
             MessageBox.Show(this,
-                "Не удалось загрузить RSA-ключ. Убедитесь, что PEM подходит для выбранного действия.\n\n" + ex.Message,
+                "Не удалось загрузить ключ выбранного алгоритма. Проверьте PEM и пароль.\n\n" + ex.Message,
                 "OpenSig", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { SetBusy(false); }
+        finally
+        {
+            rsa?.Dispose();
+            SetBusy(false);
+        }
     }
 
     private static RSA LoadRsa(string pem, string password)
@@ -749,6 +868,7 @@ internal sealed class MainForm : Form
         _busy = busy;
         _signMode.Enabled = !busy;
         _verifyMode.Enabled = !busy;
+        _algorithmBox.Enabled = !busy;
         _pickPrivateButton.Enabled = !busy;
         _pickPublicButton.Enabled = !busy;
         _createKeysButton.Enabled = !busy;

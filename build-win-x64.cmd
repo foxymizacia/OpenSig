@@ -13,7 +13,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Building OpenSig for Windows x64...
+echo Building OpenSig 1.1 for Windows x64 (RSA + Ed25519)...
+echo Note: the first build will restore BouncyCastle.Cryptography from NuGet.
 dotnet publish "OpenSig.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o "%~dp0dist"
 if errorlevel 1 (
   echo.
