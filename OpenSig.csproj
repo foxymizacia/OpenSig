@@ -10,6 +10,7 @@
     <RootNamespace>OpenSig</RootNamespace>
     <ApplicationTitle>OpenSig</ApplicationTitle>
     <Version>1.1.0</Version>
+    <ApplicationIcon>opensig.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
