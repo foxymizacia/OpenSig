@@ -86,7 +86,8 @@ internal sealed class MainForm : Form
         BackColor = BackgroundColor;
         Font = new Font("Segoe UI", 10f);
         AutoScaleMode = AutoScaleMode.Dpi;
-
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        
         BuildInterface();
         LoadSettings();
         _settingsLoaded = true;
