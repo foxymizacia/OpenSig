@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a6be0"/>
+      <stop offset="1" stop-color="#1f3f9e"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9deea"/>
+    </linearGradient>
+    <linearGradient id="filter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0b46a"/>
+      <stop offset="1" stop-color="#c8802f"/>
+    </linearGradient>
+    <linearGradient id="ash" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9bcc4"/>
+      <stop offset="1" stop-color="#7d818c"/>
+    </linearGradient>
+    <radialGradient id="ember" cx="0.3" cy="0.5" r="0.8">
+      <stop offset="0" stop-color="#fff2b0"/>
+      <stop offset="0.45" stop-color="#ff9a2e"/>
+      <stop offset="1" stop-color="#e2381c"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff9a2e" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#ff9a2e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="smoke" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- smoke drawn as a signature-like flourish -->
+  <path d="M372 222 C 330 170, 410 140, 372 96 C 346 66, 300 84, 318 112 C 332 134, 372 110, 392 70"
+        fill="none" stroke="url(#smoke)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- ember glow -->
+  <circle cx="372" cy="236" r="62" fill="url(#glow)"/>
+
+  <!-- cigarette -->
+  <g transform="translate(236 322) rotate(-35)">
+    <rect x="-185" y="-24" width="105" height="48" rx="10" fill="url(#filter)"/>
+    <path d="M-150 -24 v48 M-120 -24 v48 M-100 -24 v48" stroke="#a8671f" stroke-opacity=".35" stroke-width="3"/>
+    <rect x="-80" y="-24" width="190" height="48" fill="url(#paper)"/>
+    <rect x="-80" y="-24" width="6" height="48" fill="#b9c1d6"/>
+    <rect x="110" y="-24" width="34" height="48" fill="url(#ash)"/>
+    <rect x="110" y="-24" width="34" height="48" fill="none"/>
+    <path d="M144 -24 q22 0 22 24 q0 24 -22 24 z" fill="url(#ember)"/>
+  </g>
+</svg>
